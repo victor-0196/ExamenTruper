@@ -1,11 +1,8 @@
 package com.spring.crud.truper.springbootcrudtruper.service.impl;
 
-import java.text.DateFormat;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -40,58 +37,55 @@ public class OrdenesServiceImpl implements OrdenesService{
 		Sucursales sucursalOrden = obtenerSucursal(ordenDto.getSucursal());
 		
 		orden.setSucursal_id(sucursalOrden.getSucursalId());
-		orden.setFecha(convertirFecha (ordenDto.getFecha()));
+		orden.setFecha(ordenDto.getFecha());
 		orden.setTotal(calcularTotal(ordenDto.getProductos()));
+
+		for (ProductoDto prod: ordenDto.getProductos()) {
+			orden.addProducto((new Productos().builder().codigo(prod.getCodigo()).descripcion(prod.getDescripcion()).precio(prod.getPrecio()).build()));
+		}
 		
 		
 		orden= ordenesRepository.save(orden);
-		
-		
-		List<Productos>  productos = obtenerListaProductos(ordenDto.getProductos(), orden.getOrden_id());
-	
-		productoRepository.saveAll(productos);
-		
-		
+		ordenDto.setTotal(orden.getTotal());
 		ordenDto.setOrdenId(orden.getOrden_id());
 		return ordenDto;
 		
 	}
 	
-	public OrdenesDto recuperarOrden(String idOrden) {
-		Ordenes orden =     ordenesRepository.obtenerOrden(Integer.valueOf(idOrden)); 
-		OrdenesDto ordenDto= new OrdenesDto ().builder().ordenId(orden.getOrden_id()). sucursal(orden.getSucursal_id().toString()    ).fecha(orden.getFecha().toString()).build()      ; 
+	public OrdenesDto recuperarOrden(Integer idOrden) {
+		Ordenes orden =  ordenesRepository.getReferenceById( idOrden);  
+		
+		List<ProductoDto> productosDto = new ArrayList<>();
+		for (Productos prod: orden.getProductos()) {
+			productosDto.add(ProductoDto.builder().codigo(prod.getCodigo()).descripcion(prod.getDescripcion()).precio(prod.getPrecio()).build()); 
+		}
+		OrdenesDto ordenDto= new OrdenesDto ().builder().ordenId(orden.getOrden_id()). sucursal(orden.getSucursal_id().toString()).fecha(orden.getFecha()).productos(productosDto).total(orden.getTotal())   .build(); 
 		return ordenDto; 
 	}
+	
+	
+	public ProductoDto actualizarPrecioProducto(ProductoDto productoDto) {
+		Optional<Productos> producto =   productoRepository.buscarPorCodigo(productoDto.getCodigo());
+		if(producto.isPresent()) {
+			Productos prod = producto.get();
+			prod.setPrecio(productoDto.getPrecio());
+			productoRepository.save(producto.get());
+			return productoDto;
+		}
+		return new ProductoDto().builder().descripcion("Producto no encontrado").build(); 
+	}
+	
 	
 	
 	private Sucursales obtenerSucursal (String nombreSucursal) {
 		return sucursalRepository.obtenerSucursalOrden(nombreSucursal);
 	}
 	
-	private Date convertirFecha (String fecha) {
-		DateFormat format = new SimpleDateFormat("DD-MM-YYYY"); 
-		try {
-			Date fechaSalida = format.parse(fecha);
-			return fechaSalida;
-		} catch (ParseException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		return null; 
-	}
-	
 	private Double calcularTotal(List<ProductoDto> productos) {
 		return productos.stream().mapToDouble(ProductoDto::getPrecio).sum();
 	}
 	
-	
-	private List<Productos> obtenerListaProductos(List<ProductoDto> productosDto, Integer ordenId){
-		List<Productos> productos = new ArrayList<>(); 
-		for (ProductoDto prod: productosDto) {
-			productos.add(new Productos().builder().ordenId(ordenId).descripcion(prod.getDescripcion()).precio(prod.getPrecio()).build());
-		}
-		return productos;
-	}
+ 
 	
 	
 
